@@ -13,6 +13,13 @@ public class ThreadAtomicVsSyncVsLongAdder {
     static long count2 = 0L;
     static LongAdder count3 = new LongAdder();
 
+    /**
+     * 功能描述
+     * @author Rhys.Ni
+     * @date 2022/8/15
+     * @param args
+     * @return void
+     */
     public static void main(String[] args) throws InterruptedException {
         Thread[] threads = new Thread[1000];
         for (int i = 0; i < threads.length; i++) {
