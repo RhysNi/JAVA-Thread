@@ -1,5 +1,6 @@
 package thread_AQS;
 
+
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -9,7 +10,7 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 public class TestReentrantLock {
     public static void main(String[] args) {
-        ReentrantLock lock = new ReentrantLock();
+        ReentrantLock lock = new ReentrantLock(true);
         lock.lock();
         lock.unlock();
     }

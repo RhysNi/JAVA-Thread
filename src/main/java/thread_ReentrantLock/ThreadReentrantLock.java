@@ -12,7 +12,7 @@ import static java.lang.System.out;
  * @date 2022/8/16 1:20 上午
  */
 public class ThreadReentrantLock {
-    Lock lock = new ReentrantLock();
+    Lock lock = new ReentrantLock(true);
 
     void method1() {
         try {
