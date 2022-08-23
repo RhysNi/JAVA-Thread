@@ -15,4 +15,12 @@ public class SleepHelper {
             e.printStackTrace();
         }
     }
+
+    public static void sleepMilliSeconds(int milliSeconds) {
+        try {
+            TimeUnit.MILLISECONDS.sleep(milliSeconds);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
 }
