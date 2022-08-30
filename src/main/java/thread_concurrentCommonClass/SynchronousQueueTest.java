@@ -7,7 +7,7 @@ import java.util.concurrent.SynchronousQueue;
  * @version 1.0
  * @date 2022/8/24 3:42 上午
  */
-public class SynchronizedQueueTest {
+public class SynchronousQueueTest {
     public static void main(String[] args) throws InterruptedException {
         SynchronousQueue<Object> synchronousQueue = new SynchronousQueue<>();
         new Thread(() -> {
@@ -18,8 +18,8 @@ public class SynchronizedQueueTest {
             }
         }).start();
 
-        synchronousQueue.put("aaa");
-        // synchronousQueue.put("bbb");
+        // synchronousQueue.put("aaa");
+        synchronousQueue.put("bbb");
 
         //不能往里面存 报Queue full异常
         // synchronousQueue.add("ccc");

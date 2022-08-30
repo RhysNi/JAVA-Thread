@@ -7,7 +7,7 @@ import java.util.concurrent.LinkedTransferQueue;
  * @version 1.0
  * @date 2022/8/24 3:48 上午
  */
-public class TransferQueueTest {
+public class LinkedTransferQueueTest {
     public static void main(String[] args) throws InterruptedException {
         LinkedTransferQueue<String> transferQueue = new LinkedTransferQueue<>();
 
