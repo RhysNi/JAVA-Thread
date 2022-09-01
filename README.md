@@ -5483,6 +5483,72 @@ public class DisruptorTest {
 > 当我们消费者出现异常之后你不能让整个线程停下来，有一个消费者出了异常那其他的消费者就不干活了，肯定不行。handleExceptionsFor为消费者指定Exception处理器 (h1).with后面是我们的ExceptionHandler出了异常之后该怎么办进行处理，重写三个方法，第一个是当产生异常的时候在这很简单直接打印出来了；第二个是handleOnStart如果启动的时候出异常；第三个handleOnShutdown你该怎么处理。
 
 ```java
+public class DisruptorTest {
 
+    public static void main(String[] args) {
+        //Specify the of the ring buffer,must be power of 2.
+        int bufferSize = 1024;
+
+        //Construct the Disruptor
+        Disruptor<LongEvent> disruptor = new Disruptor<>(LongEvent::new, bufferSize, Executors.defaultThreadFactory(), ProducerType.MULTI, new SleepingWaitStrategy());
+
+        //Connect the handlers
+        EventHandler h1 = (event, sequence, end) -> System.out.println("消费者出异常");
+        disruptor.handleEventsWith(h1);
+
+        disruptor.handleExceptionsFor(h1).with(new ExceptionHandler<LongEvent>() {
+            @Override
+            public void handleEventException(Throwable throwable, long l, LongEvent longEvent) {
+                throwable.printStackTrace();
+            }
+
+            @Override
+            public void handleOnStartException(Throwable throwable) {
+                System.out.println("Exception Start to Handle!");
+            }
+
+            @Override
+            public void handleOnShutdownException(Throwable throwable) {
+                System.out.println("Exception End to Handle!");
+            }
+        });
+
+        //Start the Disruptor,start all threads running
+        disruptor.start();
+
+        //Get the ring buffer form the Disruptor to be used for publishing.
+        RingBuffer<LongEvent> ringBuffer = disruptor.getRingBuffer();
+
+        //========================================================================
+        final int threadCount = 1;
+        CyclicBarrier barrier = new CyclicBarrier(threadCount);
+        ExecutorService service = Executors.newCachedThreadPool();
+        for (long i = 0; i < threadCount; i++) {
+            final long threadNum = i;
+            service.submit(() -> {
+                System.out.println("Thread " + threadNum + "ready to start!");
+                try {
+                    barrier.await();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                } catch (BrokenBarrierException e) {
+                    e.printStackTrace();
+                }
+
+                for (int j = 0; j < 10; j++) {
+                    ringBuffer.publishEvent((event, sequence) -> {
+                        event.setValue(threadNum);
+                        System.out.println("生产了" + threadNum);
+                    });
+                }
+            });
+        }
+
+        service.shutdown();
+        //disruptor.shutdown();
+        SleepHelper.sleepSeconds(3);
+        System.out.println(LongEventHandler.count);
+    }
+}
 ```
 
