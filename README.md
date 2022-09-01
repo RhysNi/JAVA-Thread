@@ -5012,7 +5012,7 @@ ERROR: org.openjdk.jmh.runner.RunnerException: ERROR: Exception while trying to 
 
 ### [官方样例](http://hg.openjdk.java.net/code-tools/jmh/file/tip/jmh-samples/src/main/java/org/openjdk/jmh/samples/)
 
-## com.rhys.disruptor.v1.DisruptorTest
+## Disruptor
 
 > - 内存里用于存放元素的高效队列
 > - 性能极高，无锁CAS，单机支持高并发
