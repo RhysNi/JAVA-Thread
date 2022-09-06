@@ -933,9 +933,47 @@ public class ThreadVolatileReference {
 
 ### 原子性（Atomicity）
 
-##  CAS
+#### 代码引导
 
-> `Compare And Swap` or`Compare And Set`
+> 不能够被其他线程打断的操作称为原子操作
+
+> 假设NUM原值为0，当线程一读取到NUM的原值并进行累加，准备写回修改后值`1`的时候（还没成功写回），这时来了线程二，又读取到NUM的原值`0`,又执行累加并准备将累加后的值`1`写回（又没成功写回），又来了线程三，又读取到NUM的原值`0`,又执行累加并将累加后的值`1`写回，这次写回成功了，但是NUM的值却还是`1`，这就是不具备原子性
+
+```java
+public class AtomicTest {
+    private static long NUM = 0L;
+
+    public static void main(String[] args) throws InterruptedException {
+        Thread[] threads = new Thread[100];
+
+        CountDownLatch countDownLatch = new CountDownLatch(threads.length);
+
+        for (int i = 0; i < threads.length; i++) {
+            threads[i] = new Thread(() -> {
+                for (int j = 0; j < 10000; j++) {
+                    //保证原子性如果不加锁，那就会产生线程之间的竞争
+                    //本应加到1000000的NUM却远远达不到目标值
+                    synchronized (AtomicTest.class) {
+                        NUM++;
+                    }
+                }
+                countDownLatch.countDown();
+            });
+        }
+
+        for (Thread thread : threads) {
+            thread.start();
+        }
+
+        countDownLatch.await();
+        System.out.println(NUM);
+    }
+}
+```
+
+####  CAS
+
+> ` Compare And Set/Swap/Exchange`
 >
 > **无锁自旋**
 >
@@ -943,16 +981,22 @@ public class ThreadVolatileReference {
 >
 > **没有锁的状态下，可以保持多个线程对一个值递增**
 
-<img src="https://gitee.com/rhysni/PicGoImg/raw/master/typora-user-images/image-20220812011813758.png" alt="image-20220812011813758" style="zoom:400%;" />
+<img src="https://gitee.com/rhysni/PicGoImg/raw/master/typora-user-images/image-20220907000555974.png" alt="image-20220907000555974" style="zoom:200%;" />
 
-### ABA问题
+##### ABA问题
+
+> 例如有一个值原本为`0`,被一个线程改为了`1`，又被另一个线程改为了`0`
+>
+> `0` -> `1` -> `0`
+>
+> `A` -> `B` -> `A`
 
 - 加版本号
 - 加boolean类型
 
-### AtomicInteger
+##### AtomicInteger
 
-#### 使用方法
+###### 使用方法
 
 ```java
 public class ThreadAtomicInteger {
@@ -985,7 +1029,7 @@ public class ThreadAtomicInteger {
 }
 ```
 
-#### 底层原理
+###### 底层原理
 
 > 调用`Unsafe`类中`getAndAddInt`方法
 
@@ -993,13 +1037,13 @@ public class ThreadAtomicInteger {
 
 > `JDK1.8`中`getAndAddInt`方法中调用了`compareAndSwapInt`方法
 
-​	<img src="https://gitee.com/rhysni/PicGoImg/raw/master/typora-user-images/image-20220811235241816.png" alt="image-20220811235241816" style="zoom:400%;" />
+<img src="https://gitee.com/rhysni/PicGoImg/raw/master/typora-user-images/image-20220811235241816.png" alt="image-20220811235241816" style="zoom:400%;" />
 
 > `JDK11`后调用了`weakCompareAndSetInt`方法,可能引入了弱指针，对于垃圾回收效率有提升
 
 ​	<img src="https://gitee.com/rhysni/PicGoImg/raw/master/typora-user-images/image-20220812000331287.png" alt="image-20220812000331287" style="zoom:400%;" />
 
-#### Unsafe
+###### Unsafe
 
 > 可以直接实现C/C++中编码的能力，例如：
 >
@@ -1013,6 +1057,46 @@ public class ThreadAtomicInteger {
 >
 > - 1.8中需要通过反射并判定类加载器是否是SystemDomainLoader才能拿到，否则没有权限使用
 > - 11后可以直接返回
+
+##### CAS的深度剖析
+
+> 其实底层调用的是C++`unsafe.cpp`文件的`Unsafe_CompareAndSwapInt`这段代码
+
+```c++
+UNSAFE_ENTRY(jboolean, Unsafe_CompareAndSwapInt(JNIEnv *env, jobject unsafe, jobject obj, jlong offset, jint e, jint x))
+  UnsafeWrapper("Unsafe_CompareAndSwapInt");
+  oop p = JNIHandles::resolve(obj);
+  jint* addr = (jint *) index_oop_from_field_offset_long(p, offset);
+  return (jint)(Atomic::cmpxchg(x, addr, e)) == e;
+UNSAFE_END
+```
+
+> 那如何保证原子性的呢？
+>
+> 原因是调用了`atomic_linux_x86.inline.hpp`文件中的`Atomic::cmpxchg`方法
+>
+> - linux_x86 ：在linux x86架构上的实现
+> - cmpxchg = cas修改变量值
+
+```c++
+inline jint     Atomic::cmpxchg    (jint     exchange_value, volatile jint*     dest, jint     compare_value) {
+  //先判断是不是MP（Multi-Processers）多核处理器
+  int mp = os::is_MP();
+  //LOCK_IF_MP:如果是MP则前面加一条`Lock`指令
+  //后面则是CPU底层原语`xmpxchg`
+  __asm__ volatile (LOCK_IF_MP(%4) "cmpxchgl %1,(%3)"
+                    : "=a" (exchange_value)
+                    : "r" (exchange_value), "a" (compare_value), "r" (dest), "r" (mp)
+                    : "cc", "memory");
+  return exchange_value;
+}
+```
+
+###### 最终实现
+
+```apl
+lock cmpxchg 指令
+```
 
 ####  LongAdder
 
@@ -1100,7 +1184,7 @@ public class ThreadAtomicVsSyncVsLongAdder {
 
 >  运行结果：LongAdder效率最高
 
-```shell
+```apl
 Atomic: 100000000 time 1531
 synchronized: 100000000 time 1522
 LongAdder: 100000000 time 193
@@ -1111,6 +1195,51 @@ LongAdder: 100000000 time 193
 > 底层分段锁,将线程均分为几段去执行，最后计算所有段的总和
 
 ## JUC同步锁
+
+### 基本概念
+
+#### 上锁的本质
+
+> 把并发编程序列化
+
+#### race condition(竞争条件)
+
+> 指的是多个线程访问共享数据的时候产生竞争
+
+#### unconsistency
+
+> 数据的不一致，并发访问之下产生的不期望出现的结果
+
+#### 如何保障数据一致
+
+> 线程同步（线程执行的顺序安排好）
+
+#### 锁的粒度
+
+##### monitor (管程)
+
+> 例如`synchronized(o)`括号中的部分
+>
+> 直接简称锁即可
+
+##### critical section(临界区)
+
+> 例如`synchronized(o){...}`大括号中的部分
+>
+> - 如果临界区内代码执行时间耗时较长，语句较多称为`锁粒度粗`，反之则称为`锁粒度细`
+
+#### 悲观锁
+
+> 悲观的认为这个操作会被别的线程打断（悲观锁）synchronized
+
+#### 乐观锁
+
+> 乐观的认为这个做不会被别的线程打断（乐观锁 自旋锁 无锁）CAS操作
+
+#### 悲观锁 VS 乐观锁
+
+> - 临界区执行时间比较长，等待队列中线程(不占用CPU)很多：悲观锁
+> - 时间短，等待线程较少：乐观锁
 
 ### ReentranLock VS synchronized
 
